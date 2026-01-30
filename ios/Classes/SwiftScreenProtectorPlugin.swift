@@ -1,6 +1,5 @@
 import Flutter
 import UIKit
-import ScreenProtectorKit
 
 enum ScrennProtectorMethod: String {
     case protectDataLeakageWithBlur
@@ -19,24 +18,31 @@ enum ScrennProtectorMethod: String {
     case isRecording
 }
 
+/// Screen protection mode for data leakage prevention
+enum ScreenProtectorMode {
+    case none
+    case blur
+    case image(name: String)
+    case color(hex: String)
+}
+
 public class SwiftScreenProtectorPlugin: NSObject, FlutterPlugin {
     private static var channel: FlutterMethodChannel? = nil
-    private let protectKit: ScreenProtectorKit
+    private let protectKit: AccessibleScreenPreventer
     private var protectMode: ScreenProtectorMode = .none
     private var isPreventScreenshotEnabled = false
 
-    init(_ screenProtector: ScreenProtectorKit) {
+    init(_ screenProtector: AccessibleScreenPreventer) {
         self.protectKit = screenProtector
     }
 
     public static func register(with registrar: FlutterPluginRegistrar) {
-        SwiftScreenProtectorPlugin.channel = FlutterMethodChannel(name: "screen_protector", binaryMessenger: registrar.messenger())
+        SwiftScreenProtectorPlugin.channel = FlutterMethodChannel(
+            name: "screen_protector", binaryMessenger: registrar.messenger())
 
-        let kit = ScreenProtectorKit(window: SwiftScreenProtectorPlugin.keyWindow())
-        kit.setRootViewResolver(FlutterRootViewResolver())
-        ScreenProtectorKit.initial(with: kit.window?.rootViewController?.view)
+        let kit = AccessibleScreenPreventer(window: SwiftScreenProtectorPlugin.keyWindow())
         let instance = SwiftScreenProtectorPlugin(kit)
-        
+
         registrar.addMethodCallDelegate(instance, channel: SwiftScreenProtectorPlugin.channel!)
         registrar.addApplicationDelegate(instance)
     }
@@ -51,7 +57,7 @@ public class SwiftScreenProtectorPlugin: NSObject, FlutterPlugin {
             self.handleFunc(call, result: result)
         }
     }
-    
+
     public func applicationWillResignActive(_ application: UIApplication) {
         updateWindowIfNeeded()
         applyDataLeakageProtection()
@@ -71,9 +77,9 @@ public class SwiftScreenProtectorPlugin: NSObject, FlutterPlugin {
     }
 }
 
-private extension SwiftScreenProtectorPlugin {
-    func handleFunc(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
-        let args = call.arguments as? Dictionary<String, String>
+extension SwiftScreenProtectorPlugin {
+    fileprivate func handleFunc(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+        let args = call.arguments as? [String: String]
 
         switch ScrennProtectorMethod(rawValue: call.method) {
         case .protectDataLeakageWithBlur:
@@ -145,7 +151,8 @@ private extension SwiftScreenProtectorPlugin {
                 channel?.invokeMethod("onScreenshot", arguments: nil)
             }
             if #available(iOS 11.0, *) {
-                protectKit.screenRecordObserver { [weak channel = SwiftScreenProtectorPlugin.channel] isCaptured in
+                protectKit.screenRecordObserver {
+                    [weak channel = SwiftScreenProtectorPlugin.channel] isCaptured in
                     channel?.invokeMethod("onScreenRecord", arguments: isCaptured)
                 }
             }
@@ -167,35 +174,35 @@ private extension SwiftScreenProtectorPlugin {
             break
         }
     }
-    
-    func updateWindowIfNeeded() {
+
+    fileprivate func updateWindowIfNeeded() {
         if let window = Self.keyWindow() {
             protectKit.window = window
         }
     }
 
-    func applyDataLeakageProtection() {
+    fileprivate func applyDataLeakageProtection() {
         updateWindowIfNeeded()
         clearDataLeakageProtection()
         switch protectMode {
         case .blur:
             protectKit.enabledBlurScreen()
-        case let .image(name):
+        case .image(let name):
             protectKit.enabledImageScreen(named: name)
-        case let .color(hex):
+        case .color(let hex):
             protectKit.enabledColorScreen(hexColor: hex)
         case .none:
             break
         }
     }
 
-    func clearDataLeakageProtection() {
+    fileprivate func clearDataLeakageProtection() {
         protectKit.disableBlurScreen()
         protectKit.disableImageScreen()
         protectKit.disableColorScreen()
     }
 
-    func setDataLeakageProtectMode(_ mode: ScreenProtectorMode) {
+    fileprivate func setDataLeakageProtectMode(_ mode: ScreenProtectorMode) {
         protectMode = mode
         if UIApplication.shared.applicationState != .active {
             applyDataLeakageProtection()
@@ -204,7 +211,7 @@ private extension SwiftScreenProtectorPlugin {
         }
     }
 
-    static func keyWindow() -> UIWindow? {
+    fileprivate static func keyWindow() -> UIWindow? {
         if #available(iOS 13.0, *) {
             return UIApplication.shared.connectedScenes
                 .compactMap { $0 as? UIWindowScene }
