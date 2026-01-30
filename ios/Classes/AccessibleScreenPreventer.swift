@@ -86,7 +86,9 @@ public class AccessibleScreenPreventer {
     }
 
     public func enabledBlurScreen(style: UIBlurEffect.Style = UIBlurEffect.Style.light) {
-        screenBlur = UIScreen.main.snapshotView(afterScreenUpdates: false)
+        // Fix: Use window?.snapshotView instead of UIScreen.main.snapshotView
+        // See: https://github.com/prongbang/screen_protector/issues/32
+        screenBlur = window?.snapshotView(afterScreenUpdates: false)
         let blurEffect = UIBlurEffect(style: style)
         let blurBackground = UIVisualEffectView(effect: blurEffect)
         screenBlur?.addSubview(blurBackground)
